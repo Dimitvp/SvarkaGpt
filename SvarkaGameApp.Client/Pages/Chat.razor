@@ -1,0 +1,41 @@
+﻿@page "/chat"
+@inject NavigationManager Navigation
+@inject HubConnectionBuilder HubConnectionBuilder
+
+<h3>Chat</h3>
+<input @bind="message" placeholder="Type a message..." />
+<button @onclick="SendMessage">Send</button>
+
+<ul>
+    @foreach (var msg in messages)
+    {
+        <li>@msg</li>
+    }
+</ul>
+
+@code {
+    private HubConnection _hubConnection;
+    private string message = "";
+    private List<string> messages = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _hubConnection = HubConnectionBuilder
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+            .Build();
+
+        _hubConnection.On<string, string>("ReceiveMessage", (user, msg) =>
+        {
+            messages.Add($"{user}: {msg}");
+            InvokeAsync(StateHasChanged);
+        });
+
+        await _hubConnection.StartAsync();
+    }
+
+    private async Task SendMessage()
+    {
+        await _hubConnection.SendAsync("SendMessage", "Player1", message);
+        message = "";
+    }
+}

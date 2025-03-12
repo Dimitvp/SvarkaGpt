@@ -1,0 +1,86 @@
+﻿@page "/game/{GameId}"
+@using Microsoft.AspNetCore.SignalR.Client
+@using SvarkaGameApp.Shared.Models
+@inject NavigationManager Navigation
+@inject HttpClient Http
+@code {
+    [Parameter] public string GameId { get; set; }
+    private HubConnection hubConnection;
+    private GameState gameState = new GameState();
+    private string currentPlayer = "";
+    private string message = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentPlayer = await Http.GetStringAsync("api/user/current");
+        await SetupSignalRConnection();
+    }
+
+    private async Task SetupSignalRConnection()
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/gameHub"))
+            .Build();
+
+        hubConnection.On<GameState>("ReceiveGameState", state =>
+        {
+            gameState = state;
+            InvokeAsync(StateHasChanged);
+        });
+
+        await hubConnection.StartAsync();
+        await hubConnection.InvokeAsync("JoinGame", GameId, currentPlayer);
+    }
+
+    private async Task PlayCard(Card card)
+    {
+        await hubConnection.SendAsync("PlayCard", GameId, currentPlayer, card);
+    }
+
+    private async Task DrawCard()
+    {
+        await hubConnection.SendAsync("DrawCard", GameId, currentPlayer);
+    }
+
+    private string GetCardClass(Card card)
+    {
+        return card.IsWild ? "wild-card" : "normal-card";
+    }
+}
+
+<h3>Svarka Game</h3>
+
+@if (gameState != null)
+{
+    <h4>Current Turn: @gameState.CurrentTurn</h4>
+    <h4>Status: @gameState.Status</h4>
+
+    <div>
+        <h5>Your Hand:</h5>
+        @foreach (var card in gameState.Players.FirstOrDefault(p => p.Username == currentPlayer)?.Hand ?? new List<Card>())
+        {
+            <button class="@GetCardClass(card)" @onclick="() => PlayCard(card)">
+                @card.Rank of @card.Suit
+            </button>
+        }
+    </div>
+
+    <button @onclick="DrawCard">Draw Card</button>
+
+    <div>
+        <h5>Played Cards:</h5>
+        @foreach (var card in gameState.PlayedCards)
+        {
+            <span>@card.Rank of @card.Suit</span>
+        }
+    </div>
+}
+else
+{
+    <p>Loading game...</p>
+}
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <p>@message</p>
+}

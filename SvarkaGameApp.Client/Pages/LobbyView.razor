@@ -1,0 +1,74 @@
+﻿@page "/"
+@using SvarkaGameApp.Shared.Interfaces
+@using SvarkaGameApp.Shared.Models
+@inject ITableService TableService
+@inject NavigationManager Navigation
+
+<h3>Available Tables</h3>
+
+<ul>
+    @foreach (var table in tables)
+    {
+        <li>
+            Table: @table.Name, Status: @table.Status, Players: @table.Players.Count/8
+            @if (!table.IsPrivate)
+            {
+                <button @onclick="() => JoinTable(table.Id)">Join</button>
+            }
+            else
+            {
+                <span>Private</span>
+            }
+        </li>
+    }
+</ul>
+
+<button @onclick="CreatePublicTable">Create Public Table</button>
+<button @onclick="CreatePrivateTable">Create Private Table</button>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert alert-info">@message</div>
+}
+
+@code {
+    private List<TableModel> tables = new();
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        tables = await TableService.GetAllTablesAsync();
+    }
+
+    private async Task CreatePublicTable()
+    {
+        try
+        {
+            var newTable = await TableService.CreateTableAsync("Public Table", false);
+            tables.Add(newTable);
+        }
+        catch (Exception)
+        {
+            message = "You must be logged in to create a table.";
+        }
+    }
+
+    private async Task CreatePrivateTable()
+    {
+        var newTable = await TableService.CreateTableAsync("Private Table", true);
+        tables.Add(newTable);
+    }
+
+    private async Task JoinTable(string tableId)
+    {
+        var success = await TableService.JoinTableAsync(tableId, "Player2");
+        if (success)
+        {
+            Navigation.NavigateTo($"/game/{tableId}");
+        }
+        else
+        {
+            Console.WriteLine("Failed to join the table.");
+        }
+    }
+}
